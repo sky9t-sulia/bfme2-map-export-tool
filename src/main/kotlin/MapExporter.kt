@@ -9,7 +9,11 @@ import de.darkatra.bfme2.map.serialization.MapFileReader
 import help.createDefaultConfigFile
 import help.printHelp
 import java.nio.file.Path
-import kotlin.io.path.*
+import kotlin.io.path.absolutePathString
+import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
+import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.writeText
 
 // ============================================================================
 // Main Entry Point
@@ -19,13 +23,31 @@ val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 const val CELL_SIZE = 32
 const val PREVIEW_CELL_SIZE = CELL_SIZE
 
-// This value is experimental. I've got this value by tests.
+// Scaling factor for converting heightmap values to world units.
+// This empirically-determined value (7.0) produces accurate terrain heights
+// when rendering the exported heightmap. Adjust if terrain appears too flat or steep.
 const val HEIGHTMAP_SCALE = 7.0
 
 fun main(args: Array<String>) {
     // Check for help flags
     if (args.any { it.equals("-h", true) || it.equals("-help", true) }) {
         printHelp()
+        return
+    }
+
+    // Windows Protected folder check
+    // try to create a file in the working directory to check for write permissions
+    val testFilePath = Path.of("permission_test.tmp")
+    try {
+        testFilePath.writeText("permission test")
+        testFilePath.toFile().delete()
+    } catch (_: Exception) {
+        println("Error: No write permissions in the current working directory.")
+        println("Possible reasons:")
+        println(" - You are running the tool from a protected system folder (e.g., Program Files)")
+        println(" - You do not have sufficient user permissions")
+        println(" - Windows Protected Folders feature is enabled for this location")
+        println("Please run the tool from a different location where you have write permissions.")
         return
     }
 
@@ -69,8 +91,6 @@ fun main(args: Array<String>) {
         println("Error: ${e.javaClass.name}: ${e.message}")
         return
     }
-
-
 
     println("\n=== Export Complete ===")
 }

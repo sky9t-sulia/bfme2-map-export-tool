@@ -20,7 +20,7 @@ A command-line tool that converts Battle for Middle-earth II (BFME2) `.map` file
 
 ## Requirements
 
-- Java 17 or higher
+- Java 17 or higher [Download](https://adoptium.net/temurin/releases/?version=17)
 - Maven (for building from source)
 
 ### Dependencies

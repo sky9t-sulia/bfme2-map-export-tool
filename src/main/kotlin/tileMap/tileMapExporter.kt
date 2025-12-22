@@ -1,9 +1,9 @@
 package tileMap
 
+import gson
 import config.MapExporterConfig
 import de.darkatra.bfme2.map.MapFile
 import getTextureForTileValue
-import gson
 import loadTextureImages
 import loadTextureNames
 import normalMapName
@@ -12,8 +12,6 @@ import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
 import kotlin.io.path.writeText
-import kotlin.text.toInt
-import kotlin.times
 
 // ============================================================================
 // Tilemap Export

@@ -1,9 +1,9 @@
 package heightMap
 
+import gson
 import config.MapExporterConfig
 import de.darkatra.bfme2.map.MapFile
 import de.darkatra.bfme2.map.heightmap.HeightMap
-import gson
 import java.awt.image.BufferedImage
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
