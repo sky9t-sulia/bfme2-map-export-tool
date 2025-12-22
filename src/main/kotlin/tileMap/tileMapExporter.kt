@@ -12,6 +12,7 @@ import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
 import kotlin.io.path.writeText
+import kotlin.text.toInt
 
 // ============================================================================
 // Tilemap Export
@@ -59,9 +60,8 @@ fun exportTileMapJson(
     val textureNames = loadTextureNames(textures, terrainMappings)
     val textureImages = loadTextureImages(textures, config.pathToTexturesFolder, terrainMappings)
 
-    // Analyze tile data
-    val width = tiles.values.flatMap { it.keys }.maxOrNull()?.toInt() ?: 0
-    val length = tiles.keys.maxOrNull()?.toInt() ?: 0
+    val width = mapFile.heightMap.width.toInt()
+    val length = mapFile.heightMap.height.toInt()
 
     println("  Tile grid: ${width}x${length}")
 
@@ -94,6 +94,7 @@ fun exportTileMapJson(
     tiles.forEach { (x, row) ->
         row.forEach { (y, tileValue) ->
             val result = getTextureForTileValue(tileValue.toUInt(), textures, textureImages)
+            val flippedY = (length - 1).toUInt() - y
 
             if (result != null) {
                 val (textureImage, index) = result
@@ -101,12 +102,12 @@ fun exportTileMapJson(
                 val cellCount = textureImage.width / config.cellSize
 
                 val texX = (x.toInt() % cellCount) * config.cellSize
-                val texY = (y.toInt() % cellCount) * config.cellSize
+                val texY = (flippedY.toInt() % cellCount) * config.cellSize
 
                 val tileData = TileData(
                     tileValue = tileValue.toInt(),
                     textureIndex = index,
-                    cell = listOf(x.toInt(), y.toInt()),
+                    cell = listOf(x.toInt(), flippedY.toInt()),
                     textureOffset = listOf(texX, texY)
                 )
 
@@ -114,7 +115,7 @@ fun exportTileMapJson(
 
                 if (config.generatePreviews) {
                     val pixelX = x.toInt() * config.previewCellSize
-                    val pixelY = (length - y.toInt() - 1) * config.previewCellSize
+                    val pixelY = flippedY.toInt() * config.previewCellSize
 
                     try {
                         val cellImage = textureImage.getSubimage(texX, texY, config.cellSize, config.cellSize)
