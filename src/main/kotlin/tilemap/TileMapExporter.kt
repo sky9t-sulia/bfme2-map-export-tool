@@ -1,5 +1,6 @@
 package tilemap
 
+import com.google.gson.annotations.SerializedName
 import gson
 import config.MapExporterConfig
 import de.darkatra.bfme2.map.MapFile
@@ -17,32 +18,52 @@ import kotlin.io.path.writeText
 // Tilemap Export
 // ============================================================================
 
+data class Point(
+    val x: Int,
+    val y: Int
+)
+
 data class TileData(
-    val tileValue: Int,
+    @SerializedName("TileValue")
+    val tileValue: UShort,
+    @SerializedName("TextureIndex")
     val textureIndex: Int,
-    val cell: List<Int>,
-    val textureOffset: List<Int>
+    @SerializedName("Cell")
+    val cell: Point,
+    @SerializedName("TextureOffset")
+    val textureOffset: Point
 )
 
 data class TextureData(
+    @SerializedName("Index")
     val index: Int,
+    @SerializedName("Size")
     val size: Int,
+    @SerializedName("Name")
     val name: String,
+    @SerializedName("FileName")
     val fileName: String?,
+    @SerializedName("NormalMapFileName")
     val normalMapFileName: String,
 )
 
 data class UnityMapExport(
+    @SerializedName("MapName")
     val mapName: String,
-    val mapDescription: String,
+    @SerializedName("Dimensions")
     val dimensions: MapDimensions,
+    @SerializedName("Tiles")
     val tiles: List<TileData>,
+    @SerializedName("Textures")
     val textures: List<TextureData>,
 )
 
 data class MapDimensions(
+    @SerializedName("Width")
     val width: Int,
+    @SerializedName("Height")
     val height: Int,
+    @SerializedName("TileSize")
     val tileSize: Int
 )
 
@@ -103,10 +124,10 @@ fun exportTileMapJson(
                 val texY = (y.toInt() % cellCount) * config.cellSize
 
                 val tileData = TileData(
-                    tileValue = tileValue.toInt(),
+                    tileValue = tileValue,
                     textureIndex = index,
-                    cell = listOf(x.toInt(), y.toInt()),
-                    textureOffset = listOf(texX, texY)
+                    cell = Point(x.toInt(), y.toInt()),
+                    textureOffset = Point(texX, texY)
                 )
 
                 tileDataList.add(tileData)
@@ -137,7 +158,6 @@ fun exportTileMapJson(
 
     val export = UnityMapExport(
         mapName = mapFile.worldInfo["mapName"]?.value.toString(),
-        mapDescription = mapFile.worldInfo["mapDescription"]?.value.toString(),
         dimensions = dimensions,
         tiles = tileDataList,
         textures = textureDataList,

@@ -25,6 +25,7 @@ fun exportHeightMap(mapFile: MapFile, outputDir: Path) {
 
     // Export metadata JSON
     val metadata = mapOf(
+        "MapName" to mapFile.worldInfo["mapName"]?.value.toString(),
         "Width" to heightMap.width.toInt(),
         "Height" to heightMap.height.toInt(),
         "Border" to heightMap.borderWidth.toInt(),
