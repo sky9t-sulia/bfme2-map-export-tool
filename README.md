@@ -119,11 +119,11 @@ For each processed map, the tool creates a subfolder with:
 ### Heightmap Output
 - `heightmap.raw` - 16-bit little-endian RAW heightmap
 - `heightmap.png` - Visual preview of the heightmap
-- `heightmap_info.json` - Metadata including dimensions and scale
+- `heightmap.json` - Metadata including dimensions and scale
 
 ### Tilemap Output
 - `tilemap.json` - Complete tile and texture information in JSON format
-- `preview.png` - Visual preview of the tilemap (optional)
+- `tilemap.png` - Visual preview of the tilemap (optional)
 
 ### Example tilemap.json Structure
 
