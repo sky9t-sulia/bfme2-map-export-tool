@@ -1,5 +1,5 @@
-import heightMap.exportHeightMap
-import tileMap.exportTileMapJson
+import heightmap.exportHeightMap
+import tilemap.exportTileMapJson
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import config.MapExporterConfig
@@ -22,11 +22,6 @@ val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
 const val CELL_SIZE = 32
 const val PREVIEW_CELL_SIZE = CELL_SIZE
-
-// Scaling factor for converting heightmap values to world units.
-// This empirically-determined value (7.0) produces accurate terrain heights
-// when rendering the exported heightmap. Adjust if terrain appears too flat or steep.
-const val HEIGHTMAP_SCALE = 7.0
 
 fun main(args: Array<String>) {
     // Check for help flags
@@ -116,7 +111,7 @@ fun processMap(mapFilePath: Path, config: MapExporterConfig, terrainMappings: Ma
         if (config.generateHeightMap) {
             // Export heightmap
             println("\n--- Exporting Heightmap ---")
-            exportHeightMap(mapFile, mapOutputDir, config)
+            exportHeightMap(mapFile, mapOutputDir)
         }
 
         if (config.generateTileMap) {
@@ -126,7 +121,6 @@ fun processMap(mapFilePath: Path, config: MapExporterConfig, terrainMappings: Ma
                 mapFile,
                 terrainMappings,
                 mapOutputDir,
-                mapFileName,
                 config
             )
         }

@@ -178,8 +178,8 @@ bfme2-exporter/
 │   ├── MapExporter.kt          # Main entry point
 │   ├── Helpers.kt              # Utility functions
 │   ├── config/                 # Configuration loaders
-│   ├── heightMap/              # Heightmap export logic
-│   ├── tileMap/                # Tilemap export logic
+│   ├── heightmap/              # Heightmap export logic
+│   ├── tilemap/                # Tilemap export logic
 │   └── help/                   # Help and default config
 ├── config.ini                  # User configuration
 ├── terrain.ini                 # Terrain-to-texture mappings

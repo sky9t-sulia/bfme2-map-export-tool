@@ -1,4 +1,4 @@
-package tileMap
+package tilemap
 
 import gson
 import config.MapExporterConfig
@@ -12,7 +12,6 @@ import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
 import kotlin.io.path.writeText
-import kotlin.text.toInt
 
 // ============================================================================
 // Tilemap Export
@@ -35,6 +34,7 @@ data class TextureData(
 
 data class UnityMapExport(
     val mapName: String,
+    val mapDescription: String,
     val dimensions: MapDimensions,
     val tiles: List<TileData>,
     val textures: List<TextureData>,
@@ -42,7 +42,7 @@ data class UnityMapExport(
 
 data class MapDimensions(
     val width: Int,
-    val length: Int,
+    val height: Int,
     val tileSize: Int
 )
 
@@ -50,7 +50,6 @@ fun exportTileMapJson(
     mapFile: MapFile,
     terrainMappings: Map<String, String>,
     outputDir: Path,
-    mapName: String,
     config: MapExporterConfig,
 ) {
     val blendTileData = mapFile.blendTileData
@@ -61,11 +60,11 @@ fun exportTileMapJson(
     val textureImages = loadTextureImages(textures, config.pathToTexturesFolder, terrainMappings)
 
     val width = mapFile.heightMap.width.toInt()
-    val length = mapFile.heightMap.height.toInt()
+    val height = mapFile.heightMap.height.toInt()
 
-    println("  Tile grid: ${width}x${length}")
+    println("  Tile grid: ${width}x${height}")
 
-    val dimensions = MapDimensions(width, length, config.cellSize)
+    val dimensions = MapDimensions(width, height, config.cellSize)
     val tileDataList = mutableListOf<TileData>()
     val textureDataList = mutableListOf<TextureData>()
 
@@ -74,7 +73,7 @@ fun exportTileMapJson(
 
     if (config.generatePreviews) {
         val imageWidth = (width * config.previewCellSize)
-        val imageHeight = (length * config.previewCellSize)
+        val imageHeight = (height * config.previewCellSize)
         image = BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
         graphics = image.createGraphics()
     }
@@ -94,7 +93,6 @@ fun exportTileMapJson(
     tiles.forEach { (x, row) ->
         row.forEach { (y, tileValue) ->
             val result = getTextureForTileValue(tileValue.toUInt(), textures, textureImages)
-            val flippedY = (length - 1).toUInt() - y
 
             if (result != null) {
                 val (textureImage, index) = result
@@ -102,12 +100,12 @@ fun exportTileMapJson(
                 val cellCount = textureImage.width / config.cellSize
 
                 val texX = (x.toInt() % cellCount) * config.cellSize
-                val texY = (flippedY.toInt() % cellCount) * config.cellSize
+                val texY = (y.toInt() % cellCount) * config.cellSize
 
                 val tileData = TileData(
                     tileValue = tileValue.toInt(),
                     textureIndex = index,
-                    cell = listOf(x.toInt(), flippedY.toInt()),
+                    cell = listOf(x.toInt(), y.toInt()),
                     textureOffset = listOf(texX, texY)
                 )
 
@@ -115,7 +113,7 @@ fun exportTileMapJson(
 
                 if (config.generatePreviews) {
                     val pixelX = x.toInt() * config.previewCellSize
-                    val pixelY = flippedY.toInt() * config.previewCellSize
+                    val pixelY = y.toInt() * config.previewCellSize
 
                     try {
                         val cellImage = textureImage.getSubimage(texX, texY, config.cellSize, config.cellSize)
@@ -138,19 +136,20 @@ fun exportTileMapJson(
     }
 
     val export = UnityMapExport(
-        mapName = mapName,
+        mapName = mapFile.worldInfo["mapName"]?.value.toString(),
+        mapDescription = mapFile.worldInfo["mapDescription"]?.value.toString(),
         dimensions = dimensions,
         tiles = tileDataList,
         textures = textureDataList,
     )
 
     val json = gson.toJson(export)
-    val jsonFile = outputDir.resolve("${mapName}_unity.json")
+    val jsonFile = outputDir.resolve("tilemap.json")
     jsonFile.writeText(json)
 
     println("  Tiles: ${tileDataList.size}")
     println("  Textures: ${textureDataList.size}")
-    println("  Saved: ${mapName}_unity.json")
+    println("  Saved: tilemap.json")
 
     if (config.generatePreviews) {
         println("  Saved: tilemap.png")

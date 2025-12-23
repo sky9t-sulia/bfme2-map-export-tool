@@ -1,7 +1,6 @@
 package config
 
 import CELL_SIZE
-import HEIGHTMAP_SCALE
 import PREVIEW_CELL_SIZE
 import java.nio.file.Path
 import kotlin.io.path.exists
@@ -17,7 +16,6 @@ data class MapExporterConfig(
     val generatePreviews: Boolean,
     val generateTileMap: Boolean,
     val generateHeightMap: Boolean,
-    val heightMapScale: Double,
     val pathToMapsFolder: Path,
     val pathToTexturesFolder: Path,
     val pathToOutput: Path,
@@ -51,7 +49,6 @@ fun loadConfig(configPath: Path): MapExporterConfig {
 
     val cellSize = properties["cell_size"]?.toInt() ?: CELL_SIZE
     val previewCellSize = properties["preview_cell_size"]?.toInt() ?: PREVIEW_CELL_SIZE
-    val heightMapScale = properties["heightmap_scale_value"]?.toDouble() ?: HEIGHTMAP_SCALE
 
     val generatePreviews = properties["generate_previews"]?.toInt() ?: 0
     val generateTileMap = properties["generate_tilemap"]?.toInt() ?: 0
@@ -79,7 +76,6 @@ fun loadConfig(configPath: Path): MapExporterConfig {
         generatePreviews = generatePreviews == 1,
         generateTileMap = generateTileMap == 1,
         generateHeightMap = generateHeightMap == 1,
-        heightMapScale = heightMapScale,
         pathToMapsFolder = pathToMapsFolder,
         pathToTexturesFolder = pathToTexturesFolder,
         pathToOutput = pathToOutput,
