@@ -112,6 +112,10 @@ java -jar bfme2-exporter.jar -h
 - A sample from AOTR 9.0 is included
 - Update this file to match your game version if needed
 
+### 4. Blend Masks
+
+- To generate a preview with blending enabled, ensure the `blend-masks` folder is placed in the same directory as the executable.
+
 ## Output
 
 For each processed map, the tool creates a subfolder with:
@@ -139,8 +143,8 @@ For each processed map, the tool creates a subfolder with:
     {
       "tileValue": 1,
       "textureIndex": 0,
-      "cell": [0, 0],
-      "textureOffset": [0, 0]
+      "cell": { "x": 0, "y": 0 },
+      "textureOffset": { "x": 0, "y": 0 }
     }
   ],
   "textures": [
@@ -162,29 +166,13 @@ THERE WILL BE LINK TO A TOOL FOR UNITY IMPORT. ONCE IT IS READY.
 1. Import the heightmap:
    - Create a new Terrain object
    - Use "Import Raw" and select `heightmap.raw`
-   - Set resolution to match the values in `heightmap_info.json`
-   - Set height to the scale value (typically 7)
+   - Set resolution to match the values in `heightmap.json`
 
 2. Apply textures:
    - Import all texture files from your textures folder
    - Parse `tilemap.json` to apply textures at correct positions
    - Use the tile positions and texture indices to recreate the terrain appearance
 
-## Project Structure
-
-```
-bfme2-exporter/
-├── src/main/kotlin/
-│   ├── MapExporter.kt          # Main entry point
-│   ├── Helpers.kt              # Utility functions
-│   ├── config/                 # Configuration loaders
-│   ├── heightmap/              # Heightmap export logic
-│   ├── tilemap/                # Tilemap export logic
-│   └── help/                   # Help and default config
-├── config.ini                  # User configuration
-├── terrain.ini                 # Terrain-to-texture mappings
-└── pom.xml                     # Maven build configuration
-```
 
 ## Credits
 - Special thanks to [DarkAtra](https://github.com/DarkAtra) for maintaining the bfme2-modding-utils library. Without it, this project would not be possible.
