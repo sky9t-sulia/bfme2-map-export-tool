@@ -1,4 +1,4 @@
-package help
+package com.sulia.sky9t.help
 
 import java.nio.file.Path
 import kotlin.io.path.writeText
@@ -17,15 +17,15 @@ fun printHelp() {
         |CONFIGURATION:
         |  All options for map export are controlled via config.ini in the working directory.
         |  Options include:
-        |    cell_size, preview_cell_size, heightmap_scale_value, generate_previews,
+        |    cell_size, preview_cell_size, generate_previews, blend_tiles,
         |    generate_tilemap, generate_heightmap,
         |    path_to_maps_folder, path_to_textures_folder, path_to_output, path_to_terrain_ini
         |
         |EXAMPLE CONFIG.INI:
         |  cell_size=32
         |  preview_cell_size=8
-        |  heightmap_scale_value=7
         |  generate_previews=1
+        |  blend_tiles=1
         |  generate_tilemap=1
         |  generate_heightmap=1
         |  # relative paths supported
@@ -54,6 +54,9 @@ fun createDefaultConfigFile(configPath: Path) {
     |
     |# Generate Previews? 0,1
     |generate_previews = 1
+    |
+    |# Blend Tiles? 0,1
+    |blend_tiles = 1
     |
     |# Generate TileMap? 0,1
     |generate_tilemap = 1
