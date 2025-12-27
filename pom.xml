@@ -84,7 +84,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>MapExporter</mainClass>
+                                    <mainClass>com.sulia.sky9t.MapExporterKt</mainClass>
                                 </transformer>
                             </transformers>
                             <finalName>bfme2-exporter-${project.version}</finalName>
