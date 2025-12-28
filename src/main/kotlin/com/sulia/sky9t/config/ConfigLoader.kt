@@ -1,7 +1,7 @@
 package com.sulia.sky9t.config
 
-import com.sulia.sky9t.CELL_SIZE
-import com.sulia.sky9t.PREVIEW_CELL_SIZE
+import com.sulia.sky9t.TILE_SIZE
+import com.sulia.sky9t.PREVIEW_TILE_SIZE
 import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlin.io.path.readLines
@@ -11,8 +11,8 @@ import kotlin.io.path.readLines
 // ============================================================================
 
 data class MapExporterConfig(
-    val cellSize: UInt,
-    val previewCellSize: UInt,
+    val tileSize: UInt,
+    val previewTileSize: UInt,
     val generatePreviews: Boolean,
     val blendTiles: Boolean,
     val generateTileMap: Boolean,
@@ -70,8 +70,8 @@ class ConfigLoader(private val configPath: Path) {
 
     private fun buildConfig(): MapExporterConfig {
         return MapExporterConfig(
-            cellSize = getUInt("cell_size", CELL_SIZE),
-            previewCellSize = getUInt("preview_cell_size", PREVIEW_CELL_SIZE),
+            tileSize = getUInt("tile_size", TILE_SIZE),
+            previewTileSize = getUInt("preview_tile_size", PREVIEW_TILE_SIZE),
             generatePreviews = getBoolean("generate_previews", false),
             blendTiles = getBoolean("blend_tiles", true),
             generateTileMap = getBoolean("generate_tilemap", false),

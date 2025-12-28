@@ -8,8 +8,7 @@ import kotlin.io.path.readLines
 // Domain Models
 // ============================================================================
 
-data class TextureMapping(
-    val index: Int,
+data class TextureNameFile(
     val textureName: String,
     val textureFile: String
 )
@@ -19,15 +18,14 @@ data class TextureMapping(
 // ============================================================================
 
 class TerrainIniParser(private val iniPath: Path) {
-    private var currentIndex = 0
-    private var currentTerrainName: String? = null
+    private var currentTextureName: String? = null
     private var inCommentBlock = false
-    private val mappings = mutableListOf<TextureMapping>()
+    private val map = mutableMapOf<String, TextureNameFile>()
 
-    fun parse(): List<TextureMapping> {
+    fun parse(): Map<String, TextureNameFile> {
         if (!iniPath.exists()) {
             printWarning()
-            return emptyList()
+            return emptyMap()
         }
 
         iniPath.readLines().forEach { line ->
@@ -35,7 +33,7 @@ class TerrainIniParser(private val iniPath: Path) {
         }
 
         printSummary()
-        return mappings
+        return map
     }
 
     private fun processLine(line: String) {
@@ -44,9 +42,9 @@ class TerrainIniParser(private val iniPath: Path) {
             isCommentBlockStart(line) -> inCommentBlock = true
             isCommentBlockEnd(line) -> inCommentBlock = false
             inCommentBlock -> return
-            isTerrainDeclaration(line) -> handleTerrainDeclaration(line)
+            isTextureBlockDeclaration(line) -> handleTextureBlockDeclaration(line)
             isTextureDeclaration(line) -> handleTextureDeclaration(line)
-            isEndBlock(line) -> currentTerrainName = null
+            isEndBlock(line) -> currentTextureName = null
         }
     }
 
@@ -62,35 +60,31 @@ class TerrainIniParser(private val iniPath: Path) {
         return line.startsWith("End")
     }
 
-    private fun isTerrainDeclaration(line: String): Boolean {
+    private fun isTextureBlockDeclaration(line: String): Boolean {
         return line.startsWith("Terrain ")
     }
 
     private fun isTextureDeclaration(line: String): Boolean {
-        return line.startsWith("Texture = ") && currentTerrainName != null
+        return line.startsWith("Texture = ") && currentTextureName != null
     }
 
     private fun isEndBlock(line: String): Boolean {
         return line == "End"
     }
 
-    private fun handleTerrainDeclaration(line: String) {
-        currentTerrainName = line.removePrefix("Terrain ").trim()
+    private fun handleTextureBlockDeclaration(line: String) {
+        currentTextureName = line.removePrefix("Terrain ").trim()
         inCommentBlock = false
     }
 
     private fun handleTextureDeclaration(line: String) {
-        val terrainName = currentTerrainName ?: return
+        val textureName = currentTextureName ?: return
         val textureFile = line.removePrefix("Texture = ").trim()
 
-        mappings.add(
-            TextureMapping(
-                index = currentIndex,
-                textureName = terrainName,
-                textureFile = textureFile
-            )
+        map[textureName] = TextureNameFile(
+            textureName = textureName,
+            textureFile = textureFile
         )
-        currentIndex++
     }
 
     private fun printWarning() {
@@ -98,7 +92,7 @@ class TerrainIniParser(private val iniPath: Path) {
     }
 
     private fun printSummary() {
-        println("Loaded ${mappings.size} terrain texture mappings")
+        println("Loaded ${map.size} textures")
     }
 }
 
@@ -106,7 +100,7 @@ class TerrainIniParser(private val iniPath: Path) {
 // Public API Function
 // ============================================================================
 
-fun parseTerrainIni(iniPath: Path): List<TextureMapping> {
+fun parseTerrainIni(iniPath: Path): Map<String, TextureNameFile> {
     val parser = TerrainIniParser(iniPath)
     return parser.parse()
 }

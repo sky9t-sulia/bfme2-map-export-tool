@@ -17,13 +17,13 @@ fun printHelp() {
         |CONFIGURATION:
         |  All options for map export are controlled via config.ini in the working directory.
         |  Options include:
-        |    cell_size, preview_cell_size, generate_previews, blend_tiles,
+        |    tile_size, preview_tile_size, generate_previews, blend_tiles,
         |    generate_tilemap, generate_heightmap,
         |    path_to_maps_folder, path_to_textures_folder, path_to_output, path_to_terrain_ini
         |
         |EXAMPLE CONFIG.INI:
-        |  cell_size=32
-        |  preview_cell_size=8
+        |  tile_size=32
+        |  preview_tile_size=32
         |  generate_previews=1
         |  blend_tiles=1
         |  generate_tilemap=1
@@ -44,10 +44,10 @@ fun createDefaultConfigFile(configPath: Path) {
     |
     |# Map Exporter Configuration
     |# Usually you dont need to change that value.
-    |cell_size = 32
+    |tile_size = 32
     |
     |# Used to scale down preview image
-    |preview_cell_size = 8
+    |preview_tile_size = 32
     |
     |# Heightmap scale. For Unity best results if using scale 7
     |heightmap_scale_value = 7

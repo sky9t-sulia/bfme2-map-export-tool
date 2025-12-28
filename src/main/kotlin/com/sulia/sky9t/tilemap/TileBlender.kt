@@ -1,10 +1,13 @@
 package com.sulia.sky9t.tilemap
 
+import com.sulia.sky9t.config.MapExporterConfig
+import com.sulia.sky9t.extension.applyAlphaMask
+import com.sulia.sky9t.extension.height
 import com.sulia.sky9t.texture.TextureManager
+import de.darkatra.bfme2.map.MapFile
 import de.darkatra.bfme2.map.blendtile.BlendDescription
 import de.darkatra.bfme2.map.blendtile.BlendDirection
 import de.darkatra.bfme2.map.blendtile.BlendFlags
-import de.darkatra.bfme2.map.blendtile.BlendTileData
 import java.awt.Graphics2D
 import java.awt.Point
 import java.awt.image.BufferedImage
@@ -15,7 +18,7 @@ import javax.imageio.ImageIO
 // Domain Models
 // ============================================================================
 
-enum class SimpleBlendDirection {
+enum class ExplicitBlendDirection {
     LEFT, RIGHT, TOP, BOTTOM,
     TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT,
     NONE;
@@ -40,23 +43,20 @@ data class TileCoordinate(val x: Int, val y: Int) {
 
 data class TileInfo(
     val tileValue: UInt,
-    val blendDirection: SimpleBlendDirection,
+    val blendDirection: ExplicitBlendDirection,
     val textureName: String,
-    val textureImage: BufferedImage
 )
 
 data class BlendContext(
     val shouldBlend: Boolean,
-    val direction: SimpleBlendDirection,
+    val direction: ExplicitBlendDirection,
     val maskType: BlendMaskType,
-    val targetTexture: String
 ) {
     companion object {
         val NONE = BlendContext(
             shouldBlend = false,
-            direction = SimpleBlendDirection.NONE,
+            direction = ExplicitBlendDirection.NONE,
             maskType = BlendMaskType.NONE,
-            targetTexture = ""
         )
     }
 }
@@ -75,27 +75,28 @@ class TileBlendingEngine(
     private val height: UInt,
     private val tiles: Map<UInt, Map<UInt, UShort>>,
     private val textureManager: TextureManager,
-    private val cellSize: UInt
+    private val previewTileSize: UInt,
+    private val tileSize: UInt
 ) {
     private val maskCache: Map<String, BufferedImage> by lazy {
         BlendMaskLoader.loadMasks()
     }
 
-    private val textureImages: Map<String, BufferedImage> by lazy {
-        textureManager.getTextureImages()
-    }
+    private var secondaryTileValue: UInt = 0u
 
     fun processBlend(
         blendDescription: BlendDescription,
         coordinate: TileCoordinate,
         graphics: Graphics2D
     ) {
+        secondaryTileValue = blendDescription.secondaryTextureTile
+
         val direction = blendDescription.toSimpleDirection()
         val tile = getTileInfo(coordinate, direction) ?: return
-        val blendContext = analyzeBlendContext(tile, coordinate)
 
-        if (blendContext.shouldBlend) {
-            applyBlend(blendContext, coordinate, graphics)
+        val primaryContext = analyzeBlendContext(tile, coordinate)
+        if (primaryContext.shouldBlend) {
+            applyBlend(primaryContext, coordinate, graphics)
         }
     }
 
@@ -104,13 +105,31 @@ class TileBlendingEngine(
         coordinate: TileCoordinate,
         graphics: Graphics2D
     ) {
-        val targetImage = textureImages[context.targetTexture] ?: return
+        val (texture, _) = textureManager.getTileTextureFromTileValue(secondaryTileValue.toUShort()) ?: return
+        val targetImage = textureManager.getTextureImage(texture)
+        val screenPosition = coordinate.toScreenPosition(height, previewTileSize)
+
         val mask = getMask(context) ?: return
         val subtexture = extractSubtexture(targetImage, coordinate)
         val blendedImage = subtexture.applyAlphaMask(mask)
 
-        val screenPosition = coordinate.toScreenPosition(height, cellSize)
-        graphics.drawImage(blendedImage, screenPosition.x, screenPosition.y, null)
+        graphics.drawImage(
+            blendedImage,
+            screenPosition.x,
+            screenPosition.y,
+            previewTileSize.toInt(),
+            previewTileSize.toInt(),
+            null
+        )
+    }
+
+    private fun extractSubtexture(image: BufferedImage, coordinate: TileCoordinate): BufferedImage {
+        val yFlipped = (height - 1u) - coordinate.y.toUInt()
+        val cellCount = image.width.toUInt() / tileSize
+        val texX = (coordinate.x.toUInt() % cellCount) * tileSize
+        val texY = (yFlipped % cellCount) * tileSize
+
+        return image.getSubimage(texX.toInt(), texY.toInt(), tileSize.toInt(), tileSize.toInt())
     }
 
     private fun analyzeBlendContext(tile: TileInfo, coordinate: TileCoordinate): BlendContext {
@@ -124,61 +143,54 @@ class TileBlendingEngine(
     private fun analyzeDiagonalBlend(tile: TileInfo, coord: TileCoordinate): BlendContext {
         val neighbors = coord.getDiagonalNeighbors(tile.blendDirection)
         val neighborTextures = listOfNotNull(
-            getTileInfo(neighbors.diagonal, SimpleBlendDirection.NONE),
-            getTileInfo(neighbors.adjacentSide1, SimpleBlendDirection.NONE),
-            getTileInfo(neighbors.adjacentSide2, SimpleBlendDirection.NONE)
+            getTileInfo(neighbors.diagonal, ExplicitBlendDirection.NONE),
+            getTileInfo(neighbors.adjacentSide1, ExplicitBlendDirection.NONE),
+            getTileInfo(neighbors.adjacentSide2, ExplicitBlendDirection.NONE),
         ).filter { it.textureName != tile.textureName }
 
         if (neighborTextures.isEmpty()) return BlendContext.NONE
 
-        val targetTexture = neighborTextures
-            .groupingBy { it.textureName }
-            .eachCount()
-            .maxByOrNull { it.value }
-            ?.key ?: return BlendContext.NONE
+        val (targetTexture, _) = textureManager.getTileTextureFromTileValue(
+            secondaryTileValue.toUShort(), coord.x.toUInt(), coord.y.toUInt()) ?: return BlendContext.NONE
 
-        val matchCount = neighborTextures.count { it.textureName == targetTexture }
+        val matchCount = neighborTextures.count { it.textureName == targetTexture.name }
         val maskType = when {
             matchCount >= 2 -> BlendMaskType.CORNER
-            matchCount == 1 -> BlendMaskType.DIAGONAL_ONLY
-            else -> return BlendContext.NONE
+            else -> BlendMaskType.DIAGONAL_ONLY
         }
 
         return BlendContext(
             shouldBlend = true,
             direction = tile.blendDirection,
             maskType = maskType,
-            targetTexture = targetTexture
         )
     }
 
     private fun analyzeEdgeBlend(tile: TileInfo, coord: TileCoordinate): BlendContext {
         val neighbor = coord.getEdgeNeighbor(tile.blendDirection)
-        val neighborTile = getTileInfo(neighbor, SimpleBlendDirection.NONE)
+        val neighborTile = getTileInfo(neighbor, ExplicitBlendDirection.NONE)
 
-        return if (neighborTile != null && neighborTile.textureName != tile.textureName) {
+        return if (neighborTile != null) {
             BlendContext(
                 shouldBlend = true,
                 direction = tile.blendDirection,
-                maskType = BlendMaskType.EDGE,
-                targetTexture = neighborTile.textureName
+                maskType = BlendMaskType.EDGE
             )
         } else {
             BlendContext.NONE
         }
     }
 
-    private fun getTileInfo(coordinate: TileCoordinate, direction: SimpleBlendDirection): TileInfo? {
+    private fun getTileInfo(coordinate: TileCoordinate, direction: ExplicitBlendDirection): TileInfo? {
         val tileValue = getTileValue(coordinate)
         if (tileValue == UInt.MAX_VALUE) return null
 
-        val textureInfo = textureManager.getTextureForTileValue(tileValue.toUShort()) ?: return null
+        val (textureInfo, _) = textureManager.getTileTextureFromTileValue(tileValue.toUShort()) ?: return null
 
         return TileInfo(
             tileValue = tileValue,
             blendDirection = direction,
             textureName = textureInfo.name,
-            textureImage = textureInfo.image
         )
     }
 
@@ -187,15 +199,6 @@ class TileBlendingEngine(
             ?.get(coordinate.y.toUInt())
             ?.toUInt()
             ?: UInt.MAX_VALUE
-    }
-
-    private fun extractSubtexture(image: BufferedImage, coordinate: TileCoordinate): BufferedImage {
-        val yFlipped = (height - 1u) - coordinate.y.toUInt()
-        val cellCount = image.width.toUInt() / cellSize
-        val texX = (coordinate.x.toUInt() % cellCount) * cellSize
-        val texY = (yFlipped % cellCount) * cellSize
-
-        return image.getSubimage(texX.toInt(), texY.toInt(), cellSize.toInt(), cellSize.toInt())
     }
 
     private fun getMask(context: BlendContext): BufferedImage? {
@@ -213,38 +216,38 @@ class TileBlendingEngine(
 // Extension Functions
 // ============================================================================
 
-private fun TileCoordinate.getDiagonalNeighbors(direction: SimpleBlendDirection): NeighborAnalysis {
+private fun TileCoordinate.getDiagonalNeighbors(direction: ExplicitBlendDirection): NeighborAnalysis {
     return when (direction) {
-        SimpleBlendDirection.TOP_LEFT -> NeighborAnalysis(
+        ExplicitBlendDirection.TOP_LEFT -> NeighborAnalysis(
             diagonal = offset(-1, 1),
             adjacentSide1 = offset(0, 1),
-            adjacentSide2 = offset(-1, 0)
+            adjacentSide2 = offset(-1, 0),
         )
-        SimpleBlendDirection.TOP_RIGHT -> NeighborAnalysis(
+        ExplicitBlendDirection.TOP_RIGHT -> NeighborAnalysis(
             diagonal = offset(1, 1),
             adjacentSide1 = offset(0, 1),
-            adjacentSide2 = offset(1, 0)
+            adjacentSide2 = offset(1, 0),
         )
-        SimpleBlendDirection.BOTTOM_LEFT -> NeighborAnalysis(
+        ExplicitBlendDirection.BOTTOM_LEFT -> NeighborAnalysis(
             diagonal = offset(-1, -1),
             adjacentSide1 = offset(0, -1),
-            adjacentSide2 = offset(-1, 0)
+            adjacentSide2 = offset(-1, 0),
         )
-        SimpleBlendDirection.BOTTOM_RIGHT -> NeighborAnalysis(
+        ExplicitBlendDirection.BOTTOM_RIGHT -> NeighborAnalysis(
             diagonal = offset(1, -1),
             adjacentSide1 = offset(0, -1),
-            adjacentSide2 = offset(1, 0)
+            adjacentSide2 = offset(1, 0),
         )
         else -> error("Invalid diagonal direction: $direction")
     }
 }
 
-private fun TileCoordinate.getEdgeNeighbor(direction: SimpleBlendDirection): TileCoordinate {
+private fun TileCoordinate.getEdgeNeighbor(direction: ExplicitBlendDirection): TileCoordinate {
     return when (direction) {
-        SimpleBlendDirection.LEFT -> offset(-1, 0)
-        SimpleBlendDirection.RIGHT -> offset(1, 0)
-        SimpleBlendDirection.TOP -> offset(0, 1)
-        SimpleBlendDirection.BOTTOM -> offset(0, -1)
+        ExplicitBlendDirection.LEFT -> offset(-1, 0)
+        ExplicitBlendDirection.RIGHT -> offset(1, 0)
+        ExplicitBlendDirection.TOP -> offset(0, 1)
+        ExplicitBlendDirection.BOTTOM -> offset(0, -1)
         else -> error("Invalid edge direction: $direction")
     }
 }
@@ -254,83 +257,50 @@ private fun TileCoordinate.toScreenPosition(mapHeight: UInt, cellSize: UInt): Po
     return Point((x.toUInt() * cellSize).toInt(), (yFlipped * cellSize).toInt())
 }
 
-private val SimpleBlendDirection.edgeMaskKey: String?
+private val ExplicitBlendDirection.edgeMaskKey: String?
     get() = when (this) {
-        SimpleBlendDirection.LEFT -> "left"
-        SimpleBlendDirection.RIGHT -> "right"
-        SimpleBlendDirection.TOP -> "top"
-        SimpleBlendDirection.BOTTOM -> "bottom"
+        ExplicitBlendDirection.LEFT -> "left"
+        ExplicitBlendDirection.RIGHT -> "right"
+        ExplicitBlendDirection.TOP -> "top"
+        ExplicitBlendDirection.BOTTOM -> "bottom"
         else -> null
     }
 
-private val SimpleBlendDirection.diagonalMaskKey: String?
+private val ExplicitBlendDirection.diagonalMaskKey: String?
     get() = when (this) {
-        SimpleBlendDirection.TOP_LEFT -> "top_left"
-        SimpleBlendDirection.TOP_RIGHT -> "top_right"
-        SimpleBlendDirection.BOTTOM_LEFT -> "bottom_left"
-        SimpleBlendDirection.BOTTOM_RIGHT -> "bottom_right"
+        ExplicitBlendDirection.TOP_LEFT -> "top_left"
+        ExplicitBlendDirection.TOP_RIGHT -> "top_right"
+        ExplicitBlendDirection.BOTTOM_LEFT -> "bottom_left"
+        ExplicitBlendDirection.BOTTOM_RIGHT -> "bottom_right"
         else -> null
     }
 
-private val SimpleBlendDirection.cornerMaskKey: String?
+private val ExplicitBlendDirection.cornerMaskKey: String?
     get() = when (this) {
-        SimpleBlendDirection.TOP_LEFT -> "top_left_corner"
-        SimpleBlendDirection.TOP_RIGHT -> "top_right_corner"
-        SimpleBlendDirection.BOTTOM_LEFT -> "bottom_left_corner"
-        SimpleBlendDirection.BOTTOM_RIGHT -> "bottom_right_corner"
+        ExplicitBlendDirection.TOP_LEFT -> "top_left_corner"
+        ExplicitBlendDirection.TOP_RIGHT -> "top_right_corner"
+        ExplicitBlendDirection.BOTTOM_LEFT -> "bottom_left_corner"
+        ExplicitBlendDirection.BOTTOM_RIGHT -> "bottom_right_corner"
         else -> null
     }
 
-private fun BlendDescription.toSimpleDirection(): SimpleBlendDirection {
+private fun BlendDescription.toSimpleDirection(): ExplicitBlendDirection {
     return when (blendDirection) {
         BlendDirection.BLEND_TOWARDS_RIGHT ->
-            if (flags == BlendFlags.FLIPPED) SimpleBlendDirection.LEFT
-            else SimpleBlendDirection.RIGHT
+            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.LEFT
+            else ExplicitBlendDirection.RIGHT
 
         BlendDirection.BLEND_TOWARDS_TOP ->
-            if (flags == BlendFlags.FLIPPED) SimpleBlendDirection.BOTTOM
-            else SimpleBlendDirection.TOP
+            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM
+            else ExplicitBlendDirection.TOP
 
         BlendDirection.BLEND_TOWARDS_TOP_RIGHT ->
-            if (flags == BlendFlags.FLIPPED) SimpleBlendDirection.BOTTOM_RIGHT
-            else SimpleBlendDirection.TOP_RIGHT
+            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM_RIGHT
+            else ExplicitBlendDirection.TOP_RIGHT
 
         BlendDirection.BLEND_TOWARDS_TOP_LEFT ->
-            if (flags == BlendFlags.FLIPPED) SimpleBlendDirection.BOTTOM_LEFT
-            else SimpleBlendDirection.TOP_LEFT
-    }
-}
-
-private fun BufferedImage.applyAlphaMask(mask: BufferedImage): BufferedImage {
-    val result = toARGB()
-
-    for (y in 0 until result.height) {
-        for (x in 0 until result.width) {
-            val baseColor = result.getRGB(x, y)
-            val maskAlpha = (mask.getRGB(x, y) ushr 24) and 0xFF
-
-            val red = (baseColor ushr 16) and 0xFF
-            val green = (baseColor ushr 8) and 0xFF
-            val blue = baseColor and 0xFF
-
-            val blendedColor = (maskAlpha shl 24) or (red shl 16) or (green shl 8) or blue
-            result.setRGB(x, y, blendedColor)
-        }
-    }
-
-    return result
-}
-
-private fun BufferedImage.toARGB(): BufferedImage {
-    if (type == BufferedImage.TYPE_INT_ARGB) return this
-
-    return BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB).apply {
-        val g = createGraphics()
-        try {
-            g.drawImage(this@toARGB, 0, 0, null)
-        } finally {
-            g.dispose()
-        }
+            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM_LEFT
+            else ExplicitBlendDirection.TOP_LEFT
     }
 }
 
@@ -401,22 +371,24 @@ object BlendMaskLoader {
 // ============================================================================
 
 fun applyTileBlends(
-    blendTileData: BlendTileData,
-    height: UInt,
-    tiles: Map<UInt, Map<UInt, UShort>>,
+    mapFile: MapFile,
     textureManager: TextureManager,
-    cellSize: UInt,
+    config: MapExporterConfig,
     graphics: Graphics2D
 ) {
-    val engine = TileBlendingEngine(height, tiles, textureManager, cellSize)
+    val engine = TileBlendingEngine(
+        mapFile.height(),
+        mapFile.blendTileData.tiles.rowMap(),
+        textureManager, config.previewTileSize,
+        config.tileSize
+    )
 
-    blendTileData.blends.rowMap().forEach { (x, columnMap) ->
+    mapFile.blendTileData.blends.rowMap().forEach { (x, columnMap) ->
         columnMap.forEach { (y, blendValue) ->
             if (blendValue != 0u) {
                 val descriptionIndex = (blendValue - 1u).toInt()
-                val blendDescription = blendTileData.blendDescriptions[descriptionIndex]
+                val blendDescription = mapFile.blendTileData.blendDescriptions[descriptionIndex]
                 val coordinate = TileCoordinate(x.toInt(), y.toInt())
-
                 engine.processBlend(blendDescription, coordinate, graphics)
             }
         }

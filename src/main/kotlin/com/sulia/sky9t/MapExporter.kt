@@ -3,7 +3,7 @@ package com.sulia.sky9t
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.sulia.sky9t.config.MapExporterConfig
-import com.sulia.sky9t.config.TextureMapping
+import com.sulia.sky9t.config.TextureNameFile
 import com.sulia.sky9t.config.loadConfig
 import com.sulia.sky9t.config.parseTerrainIni
 import de.darkatra.bfme2.map.MapFile
@@ -11,6 +11,7 @@ import de.darkatra.bfme2.map.serialization.MapFileReader
 import com.sulia.sky9t.heightmap.HeightMapExporter
 import com.sulia.sky9t.help.createDefaultConfigFile
 import com.sulia.sky9t.help.printHelp
+import com.sulia.sky9t.texture.TextureManager
 import com.sulia.sky9t.tilemap.TileMapExporter
 import java.nio.file.Path
 import kotlin.io.path.*
@@ -19,8 +20,8 @@ import kotlin.io.path.*
 // Constants
 // ============================================================================
 
-const val CELL_SIZE = 32u
-const val PREVIEW_CELL_SIZE = CELL_SIZE
+const val TILE_SIZE = 32u
+const val PREVIEW_TILE_SIZE = TILE_SIZE
 val GSON: Gson = GsonBuilder().setPrettyPrinting().create()
 
 // ============================================================================
@@ -48,7 +49,7 @@ fun main(args: Array<String>) {
 // ============================================================================
 
 class MapExportRunner(private val config: MapExporterConfig) {
-    private val textureMappings: List<TextureMapping> by lazy {
+    private val texturesMap: Map<String, TextureNameFile> by lazy {
         parseTerrainIni(config.pathToTerrainIni)
     }
 
@@ -92,7 +93,7 @@ class MapExportRunner(private val config: MapExporterConfig) {
         println("Found ${mapFiles.size} map file(s) to process\n")
 
         mapFiles.forEach { mapFilePath ->
-            MapProcessor(mapFilePath, config, textureMappings).process()
+            MapProcessor(mapFilePath, config, texturesMap).process()
         }
     }
 
@@ -108,7 +109,7 @@ class MapExportRunner(private val config: MapExporterConfig) {
 class MapProcessor(
     private val mapFilePath: Path,
     private val config: MapExporterConfig,
-    private val textureMappings: List<TextureMapping>
+    private val texturesMap: Map<String, TextureNameFile>
 ) {
     private val mapName = mapFilePath.fileName.toString().removeSuffix(".map")
     private val outputDir = config.pathToOutput.resolve(mapName)
@@ -157,7 +158,8 @@ class MapProcessor(
 
     private fun exportTileMap(mapFile: MapFile) {
         println("\n--- Exporting Tilemap ---")
-        TileMapExporter(mapFile, textureMappings, config).export(outputDir)
+        val textureManager = TextureManager(mapFile, texturesMap, config)
+        TileMapExporter(mapFile, textureManager, config).export(outputDir)
     }
 
     private fun printHeader() {

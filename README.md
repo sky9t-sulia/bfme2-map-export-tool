@@ -13,6 +13,7 @@ A command-line tool that converts Battle for Middle-earth II (BFME2) `.map` file
   - Maps terrain tiles to texture files
   - Includes tile positions and texture offsets
   - Optional preview image generation
+  - Supports blending. Having visual bugs though.
 
 - **Batch Processing**: Process multiple `.map` files at once
 - **Configurable**: All settings controlled via `config.ini`
