@@ -49,18 +49,16 @@ On first run, the tool will generate a default `config.ini` file. Edit this file
 ### Configuration Options
 
 ```ini
-# Cell size for tile calculations (usually 32)
-cell_size = 32
+# Usually you dont need to change that value
+tile_size = 32
 
 # Cell size for preview images (smaller = faster)
-preview_cell_size = 8
-
-# Heightmap scale factor (7 works well for Unity)
-heightmap_scale_value = 7
+preview_tile_size = 8
 
 # Export options (0 = disabled, 1 = enabled)
 generate_previews = 1
 generate_tilemap = 1
+blend_tiles = 1
 generate_heightmap = 1
 
 # Directory containing .map files to export
