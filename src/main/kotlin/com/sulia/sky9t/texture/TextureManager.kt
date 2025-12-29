@@ -19,6 +19,17 @@ class TextureManager(
     private val colorToTextureName = mutableMapOf<Int, String>()
     private val loadedTexturesCache: MutableMap<String, BufferedImage?> = mutableMapOf()
 
+    fun getTextureFileName(texture: BlendTileTexture): String {
+        val textureData = texturesMap[texture.name]
+
+        if (textureData == null) {
+            println("Warning: Texture mapping not found for ${texture.name}")
+            return "unknown_texture.tga"
+        }
+
+        return textureData.textureFile
+    }
+
     fun getTextureImage(texture: BlendTileTexture): BufferedImage {
         if (loadedTexturesCache.containsKey(texture.name)) {
             return loadedTexturesCache[texture.name]!!

@@ -43,6 +43,7 @@ data class BlendDescriptionExport(
 data class TextureDataExport(
     @SerializedName("Index") val index: Int,
     @SerializedName("Name") val name: String,
+    @SerializedName("FileName") val fileName: String,
     @SerializedName("Width") val width: UInt,
     @SerializedName("CellStart") val cellStart: UInt,
     @SerializedName("CellCount") val cellCount: UInt,
@@ -161,6 +162,7 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
             textureExportList.add(TextureDataExport(
                 index = mapFile.blendTileData.textures.indexOf(texture),
                 name = texture.name,
+                fileName = textureManager.getTextureFileName(texture),
                 width = textureImage.width.toUInt(),
                 cellStart = texture.cellStart,
                 cellCount = texture.cellCount,
