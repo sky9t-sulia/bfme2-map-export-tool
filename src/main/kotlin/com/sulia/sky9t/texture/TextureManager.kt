@@ -15,6 +15,8 @@ class TextureManager(
         buildTileValueIndex()
     }
 
+    // Cache for reverse lookup: color -> texture name
+    private val colorToTextureName = mutableMapOf<Int, String>()
     private val loadedTexturesCache: MutableMap<String, BufferedImage?> = mutableMapOf()
 
     fun getTextureImage(texture: BlendTileTexture): BufferedImage {
@@ -58,5 +60,57 @@ class TextureManager(
         )
 
         return Pair(texture, textureOffset)
+    }
+
+    fun getTextureNameFromColor(rgb: Int): String? {
+        // Check cache first
+        colorToTextureName[rgb]?.let { return it }
+
+        // Sample all loaded textures and find the closest match
+        // This is expensive, so cache the result!
+        var closestMatch: String? = null
+        var minDistance = Int.MAX_VALUE
+
+        // Iterate through all textures in the map file
+        mapFile.blendTileData.textures.forEach { texture ->
+            // Make sure texture is loaded
+            val image = try {
+                getTextureImage(texture)
+            } catch (_: Exception) {
+                return@forEach // Skip if texture can't be loaded
+            }
+
+            // Sample center pixel of texture
+            val centerX = image.width / 2
+            val centerY = image.height / 2
+            val textureRgb = image.getRGB(centerX, centerY)
+
+            val distance = colorDistance(rgb, textureRgb)
+            if (distance < minDistance) {
+                minDistance = distance
+                closestMatch = texture.name
+            }
+        }
+
+        // Cache for next time
+        closestMatch?.let { colorToTextureName[rgb] = it }
+
+        return closestMatch
+    }
+
+    private fun colorDistance(rgb1: Int, rgb2: Int): Int {
+        val r1 = (rgb1 shr 16) and 0xFF
+        val g1 = (rgb1 shr 8) and 0xFF
+        val b1 = rgb1 and 0xFF
+
+        val r2 = (rgb2 shr 16) and 0xFF
+        val g2 = (rgb2 shr 8) and 0xFF
+        val b2 = rgb2 and 0xFF
+
+        val dr = r1 - r2
+        val dg = g1 - g2
+        val db = b1 - b2
+
+        return dr * dr + dg * dg + db * db
     }
 }

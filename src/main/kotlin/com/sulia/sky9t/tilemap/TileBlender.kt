@@ -76,7 +76,8 @@ class TileBlendingEngine(
     private val tiles: Map<UInt, Map<UInt, UShort>>,
     private val textureManager: TextureManager,
     private val previewTileSize: UInt,
-    private val tileSize: UInt
+    private val tileSize: UInt,
+    private val imageBuffer: BufferedImage
 ) {
     private val maskCache: Map<String, BufferedImage> by lazy {
         BlendMaskLoader.loadMasks()
@@ -87,17 +88,51 @@ class TileBlendingEngine(
     fun processBlend(
         blendDescription: BlendDescription,
         coordinate: TileCoordinate,
-        graphics: Graphics2D
+        graphics: Graphics2D,
+        isThreeWayBlend: Boolean = false
     ) {
         secondaryTileValue = blendDescription.secondaryTextureTile
 
         val direction = blendDescription.toSimpleDirection()
         val tile = getTileInfo(coordinate, direction) ?: return
 
-        val primaryContext = analyzeBlendContext(tile, coordinate)
+        // For 3-way blends, check what's already rendered
+        val baseTextureName = if (isThreeWayBlend) {
+            getRenderedTextureName(coordinate) ?: tile.textureName
+        } else {
+            tile.textureName
+        }
+
+        val primaryContext = analyzeBlendContext(
+            tile,
+            coordinate,
+            baseTextureName,
+            isThreeWayBlend
+        )
+
         if (primaryContext.shouldBlend) {
             applyBlend(primaryContext, coordinate, graphics)
         }
+    }
+
+    private fun getRenderedTextureName(coordinate: TileCoordinate): String? {
+        val screenPosition = coordinate.toScreenPosition(height, previewTileSize)
+
+        // Sample from center of the tile
+        val centerX = screenPosition.x + previewTileSize.toInt() / 2
+        val centerY = screenPosition.y + previewTileSize.toInt() / 2
+
+        // Bounds check
+        if (centerX < 0 || centerX >= imageBuffer.width ||
+            centerY < 0 || centerY >= imageBuffer.height) {
+            return null
+        }
+
+        // Get the RGB color at this position
+        val rgb = imageBuffer.getRGB(centerX, centerY)
+
+        // Match color to texture name
+        return textureManager.getTextureNameFromColor(rgb)
     }
 
     private fun applyBlend(
@@ -132,28 +167,61 @@ class TileBlendingEngine(
         return image.getSubimage(texX.toInt(), texY.toInt(), tileSize.toInt(), tileSize.toInt())
     }
 
-    private fun analyzeBlendContext(tile: TileInfo, coordinate: TileCoordinate): BlendContext {
+    private fun analyzeBlendContext(
+        tile: TileInfo,
+        coordinate: TileCoordinate,
+        baseTextureName: String,
+        isThreeWayBlend: Boolean
+    ): BlendContext {
         return when {
-            tile.blendDirection.isDiagonal -> analyzeDiagonalBlend(tile, coordinate)
-            tile.blendDirection.isEdge -> analyzeEdgeBlend(tile, coordinate)
+            tile.blendDirection.isDiagonal -> analyzeDiagonalBlend(
+                tile,
+                coordinate,
+                baseTextureName,
+                isThreeWayBlend
+            )
+            tile.blendDirection.isEdge -> analyzeEdgeBlend(
+                tile,
+                coordinate,
+                baseTextureName,
+                isThreeWayBlend
+            )
             else -> BlendContext.NONE
         }
     }
 
-    private fun analyzeDiagonalBlend(tile: TileInfo, coord: TileCoordinate): BlendContext {
+    private fun analyzeDiagonalBlend(
+        tile: TileInfo,
+        coord: TileCoordinate,
+        baseTextureName: String,
+        isThreeWayBlend: Boolean,
+    ): BlendContext {
         val neighbors = coord.getDiagonalNeighbors(tile.blendDirection)
-        val neighborTextures = listOfNotNull(
-            getTileInfo(neighbors.diagonal, ExplicitBlendDirection.NONE),
-            getTileInfo(neighbors.adjacentSide1, ExplicitBlendDirection.NONE),
-            getTileInfo(neighbors.adjacentSide2, ExplicitBlendDirection.NONE),
-        ).filter { it.textureName != tile.textureName }
+        val neighborTextures = if (isThreeWayBlend) {
+            listOfNotNull(
+                getRenderedTextureName(neighbors.diagonal),
+                getRenderedTextureName(neighbors.adjacentSide1),
+                getRenderedTextureName(neighbors.adjacentSide2),
+            ).filter { it != baseTextureName }
+        } else {
+            listOfNotNull(
+                getTileInfo(neighbors.diagonal, ExplicitBlendDirection.NONE),
+                getTileInfo(neighbors.adjacentSide1, ExplicitBlendDirection.NONE),
+                getTileInfo(neighbors.adjacentSide2, ExplicitBlendDirection.NONE),
+            ).filter { it.textureName != baseTextureName }
+                .map { it.textureName }
+        }
 
         if (neighborTextures.isEmpty()) return BlendContext.NONE
 
         val (targetTexture, _) = textureManager.getTileTextureFromTileValue(
-            secondaryTileValue.toUShort(), coord.x.toUInt(), coord.y.toUInt()) ?: return BlendContext.NONE
+            secondaryTileValue.toUShort(),
+            coord.x.toUInt(),
+            coord.y.toUInt()
+        ) ?: return BlendContext.NONE
 
-        val matchCount = neighborTextures.count { it.textureName == targetTexture.name }
+        val matchCount = neighborTextures.count { it == targetTexture.name }
+
         val maskType = when {
             matchCount >= 2 -> BlendMaskType.CORNER
             else -> BlendMaskType.DIAGONAL_ONLY
@@ -166,11 +234,21 @@ class TileBlendingEngine(
         )
     }
 
-    private fun analyzeEdgeBlend(tile: TileInfo, coord: TileCoordinate): BlendContext {
+    private fun analyzeEdgeBlend(
+        tile: TileInfo,
+        coord: TileCoordinate,
+        baseTextureName: String,
+        isThreeWayBlend: Boolean
+    ): BlendContext {
         val neighbor = coord.getEdgeNeighbor(tile.blendDirection)
-        val neighborTile = getTileInfo(neighbor, ExplicitBlendDirection.NONE)
 
-        return if (neighborTile != null) {
+        val neighborTextureName = if (isThreeWayBlend) {
+            getRenderedTextureName(neighbor)
+        } else {
+            getTileInfo(neighbor, ExplicitBlendDirection.NONE)?.textureName
+        }
+
+        return if (neighborTextureName != null && neighborTextureName != baseTextureName) {
             BlendContext(
                 shouldBlend = true,
                 direction = tile.blendDirection,
@@ -285,21 +363,24 @@ private val ExplicitBlendDirection.cornerMaskKey: String?
     }
 
 private fun BlendDescription.toSimpleDirection(): ExplicitBlendDirection {
+    val isFlipped = flags == BlendFlags.FLIPPED ||
+            flags == BlendFlags.FLIPPED_ALSO_HAS_BOTTOM_LEFT_OR_TOP_RIGHT_BLEND
+
     return when (blendDirection) {
         BlendDirection.BLEND_TOWARDS_RIGHT ->
-            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.LEFT
+            if (isFlipped) ExplicitBlendDirection.LEFT
             else ExplicitBlendDirection.RIGHT
 
         BlendDirection.BLEND_TOWARDS_TOP ->
-            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM
+            if (isFlipped) ExplicitBlendDirection.BOTTOM
             else ExplicitBlendDirection.TOP
 
         BlendDirection.BLEND_TOWARDS_TOP_RIGHT ->
-            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM_RIGHT
+            if (isFlipped) ExplicitBlendDirection.BOTTOM_RIGHT
             else ExplicitBlendDirection.TOP_RIGHT
 
         BlendDirection.BLEND_TOWARDS_TOP_LEFT ->
-            if (flags == BlendFlags.FLIPPED) ExplicitBlendDirection.BOTTOM_LEFT
+            if (isFlipped) ExplicitBlendDirection.BOTTOM_LEFT
             else ExplicitBlendDirection.TOP_LEFT
     }
 }
@@ -374,22 +455,33 @@ fun applyTileBlends(
     mapFile: MapFile,
     textureManager: TextureManager,
     config: MapExporterConfig,
-    graphics: Graphics2D
+    graphics: Graphics2D,
+    imageBuffer: BufferedImage
 ) {
     val engine = TileBlendingEngine(
         mapFile.height(),
         mapFile.blendTileData.tiles.rowMap(),
         textureManager, config.previewTileSize,
-        config.tileSize
+        config.tileSize,
+        imageBuffer
     )
 
     mapFile.blendTileData.blends.rowMap().forEach { (x, columnMap) ->
         columnMap.forEach { (y, blendValue) ->
+            val coordinate = TileCoordinate(x.toInt(), y.toInt())
+
+            // First blend layer (always process if there's any blending)
             if (blendValue != 0u) {
                 val descriptionIndex = (blendValue - 1u).toInt()
                 val blendDescription = mapFile.blendTileData.blendDescriptions[descriptionIndex]
-                val coordinate = TileCoordinate(x.toInt(), y.toInt())
                 engine.processBlend(blendDescription, coordinate, graphics)
+            }
+
+            // Second blend layer (3-way blending)
+            val threeWayDescriptionIndex = mapFile.blendTileData.threeWayBlends.rowMap()[x]?.get(y)
+            if (threeWayDescriptionIndex != null && threeWayDescriptionIndex != 0u) {
+                val threeWayBlendDescription = mapFile.blendTileData.blendDescriptions[(threeWayDescriptionIndex - 1u).toInt()]
+                engine.processBlend(threeWayBlendDescription, coordinate, graphics, true)
             }
         }
     }

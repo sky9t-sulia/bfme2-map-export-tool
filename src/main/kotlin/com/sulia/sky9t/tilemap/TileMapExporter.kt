@@ -110,7 +110,8 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
                     mapFile,
                     textureManager,
                     config,
-                    graphics
+                    graphics,
+                    image
                 )
             }
 
