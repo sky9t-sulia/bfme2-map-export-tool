@@ -1,5 +1,7 @@
 package com.sulia.sky9t.tilemap
 
+import com.google.gson.annotations.SerializedName
+import com.sulia.sky9t.GSON
 import com.sulia.sky9t.config.MapExporterConfig
 import com.sulia.sky9t.extension.height
 import com.sulia.sky9t.extension.width
@@ -9,12 +11,51 @@ import java.awt.Graphics2D
 import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
+import kotlin.io.path.writeText
+
+data class TileMapBlock(
+    @SerializedName("Index")
+    val index: Int,
+    @SerializedName("X")
+    val blockX: Int,
+    @SerializedName("Y")
+    val blockY: Int,
+    @SerializedName("RelativeFileNamePath")
+    val fileName: String,
+)
+
+data class BlockInfo(
+    @SerializedName("WorkDirectory")
+    val workDirectory: String,
+    @SerializedName("TotalBlocks")
+    var totalBlocks: Int,
+    @SerializedName("SizeInPixels")
+    val blockSizeInPixels: Int,
+    @SerializedName("SizeInTiles")
+    val blockSizeInTiles: UInt,
+    @SerializedName("Blocks")
+    val blocks: List<TileMapBlock> = emptyList(),
+)
 
 class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, val config: MapExporterConfig) {
+    var blockInfo: BlockInfo ? = null
+
     fun export(outputDir: Path) {
         if (!config.generatePreview && !config.splitImageByBlocks) {
             println("  Skipping tile map export (no output options selected).")
             return
+        }
+
+        blockInfo = if (config.splitImageByBlocks) {
+            BlockInfo(
+                workDirectory = outputDir.toAbsolutePath().toString(),
+                totalBlocks = 0,
+                blockSizeInPixels = (config.blockSize * config.previewTileSize).toInt(),
+                blockSizeInTiles = config.blockSize,
+                blocks = mutableListOf(),
+            )
+        } else {
+            null
         }
 
         generateImage(outputDir)
@@ -111,13 +152,13 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
         val totalBlocks = blocksX * blocksY
 
         val block = BufferedImage(blockSizeInPixels, blockSizeInPixels, BufferedImage.TYPE_INT_RGB)
-        val blockFileName = "blocks"
+        val blockFileName = "blocks/dir"
         val blockFilePath = outputDir.resolve(blockFileName)
         blockFilePath.parent.toFile().mkdirs()
 
         var blockCounter = 0
-        for (by in 0 until blocksY) {
-            for (bx in 0 until blocksX) {
+        for (bx in 0 until blocksY) {
+            for (by in 0 until blocksX) {
                 blockCounter++
 
                 val g = block.createGraphics()
@@ -148,8 +189,28 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
 
                 ImageIO.write(block, "PNG", blockFilePath.toFile())
                 println("  Saved: $blockFileName [$blockCounter/$totalBlocks]")
+
+                (blockInfo?.blocks as MutableList).add(
+                    TileMapBlock(
+                        index = blockCounter - 1,
+                        blockX = bx,
+                        blockY = by,
+                        fileName = blockFileName,
+                    )
+                )
             }
         }
+
+        blockInfo?.totalBlocks = totalBlocks
+
+        exportBlockInfo(outputDir)
+    }
+
+    private fun exportBlockInfo(outputDir: Path) {
+        val blockInfoPath = outputDir.resolve("blocks.json")
+        val json = GSON.toJson(blockInfo)
+        blockInfoPath.writeText(json)
+        println("  Saved: blocks.json")
     }
 
     private fun savePreviewImage(outputDir: Path, image: BufferedImage) {
