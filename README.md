@@ -139,56 +139,54 @@ For each processed map, the tool creates a subfolder with:
 ### Heightmap Output
 - `heightmap.raw` - 16-bit little-endian RAW heightmap
 - `heightmap.png` - Visual preview of the heightmap
-- `heightmap.json` - Metadata including dimensions and scale
+- `map.json` - Metadata including dimensions and scale
 
 ### Tilemap Output
-- `tilemap.json` - Complete tile and texture information in JSON format
+- `blocks.json` - blocks list
+- `blocks/` - Folder containing individual tile images
 - `tilemap.png` - Visual preview of the tilemap (optional)
 
-### Example tilemap.json Structure
+### Example map.json Structure
 
 ```json
 {
-  "mapName": "ExampleMap",
-  "dimensions": {
-    "width": 256,
-    "length": 256,
-    "tileSize": 32
-  },
-  "tiles": [
+  "MapName": "Mission",
+  "Description": "Description",
+  "Width": 190,
+  "Height": 160,
+  "Border": 30,
+  "Format": "RAW 16-bit, Little Endian"
+}
+```
+### Example blocks.json Structure
+
+```json
+{
+  "WorkDirectory": "WorkDir/Output/Mission",
+  "TotalBlocks": 120,
+  "SizeInPixels": 512,
+  "SizeInTiles": 16,
+  "Blocks": [
     {
-      "tileValue": 1,
-      "textureIndex": 0,
-      "cell": { "x": 0, "y": 0 },
-      "textureOffset": { "x": 0, "y": 0 }
-    }
-  ],
-  "textures": [
+      "Index": 0,
+      "X": 0,
+      "Y": 0,
+      "RelativeFileNamePath": "blocks/tilemap_block_0_0.png"
+    },
     {
-      "index": 0,
-      "size": 128,
-      "name": "GrassType1",
-      "fileName": "txgrass01a.tga",
-      "normalMapFileName": "txgrass01a_nrm.tga"
-    }
+      "Index": 1,
+      "X": 1,
+      "Y": 0,
+      "RelativeFileNamePath": "blocks/tilemap_block_1_0.png"
+    },
+    ...
   ]
 }
 ```
 
 ## Using with Unity
 
-THERE WILL BE LINK TO A TOOL FOR UNITY IMPORT. ONCE IT IS READY.
-
-1. Import the heightmap:
-   - Create a new Terrain object
-   - Use "Import Raw" and select `heightmap.raw`
-   - Set resolution to match the values in `heightmap.json`
-
-2. Apply textures:
-   - Import all texture files from your textures folder
-   - Parse `tilemap.json` to apply textures at correct positions
-   - Use the tile positions and texture indices to recreate the terrain appearance
-
+See the `UnityImporter` folder.
 
 ## Credits
 - Special thanks to [DarkAtra](https://github.com/DarkAtra) for maintaining the bfme2-modding-utils library. Without it, this project would not be possible.
