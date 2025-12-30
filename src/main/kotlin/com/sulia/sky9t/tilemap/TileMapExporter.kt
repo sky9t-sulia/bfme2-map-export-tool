@@ -14,7 +14,7 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
     fun export(outputDir: Path) {
         if (!config.generatePreview && !config.splitImageByBlocks) {
             println("  Skipping tile map export (no output options selected).")
-            return;
+            return
         }
 
         generateImage(outputDir)
