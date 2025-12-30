@@ -22,6 +22,8 @@ import kotlin.io.path.*
 
 const val TILE_SIZE = 32u
 const val PREVIEW_TILE_SIZE = TILE_SIZE
+const val BLOCK_SIZE = 16u
+
 val GSON: Gson = GsonBuilder().setPrettyPrinting().create()
 
 // ============================================================================

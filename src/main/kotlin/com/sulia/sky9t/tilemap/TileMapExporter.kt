@@ -1,112 +1,42 @@
 package com.sulia.sky9t.tilemap
 
-import com.google.gson.annotations.SerializedName
-import com.sulia.sky9t.GSON
 import com.sulia.sky9t.config.MapExporterConfig
 import com.sulia.sky9t.extension.height
 import com.sulia.sky9t.extension.width
 import com.sulia.sky9t.texture.TextureManager
 import de.darkatra.bfme2.map.MapFile
-import de.darkatra.bfme2.map.blendtile.BlendDirection
-import de.darkatra.bfme2.map.blendtile.BlendFlags
 import java.awt.Graphics2D
 import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
-import kotlin.io.path.writeText
-
-data class MapDimensions(
-    @SerializedName("Width") val width: UInt,
-    @SerializedName("Height") val height: UInt,
-    @SerializedName("TileSize") val tileSize: UInt
-)
-
-data class TileDataExport(
-    @SerializedName("GridX") val gridX: UInt,
-    @SerializedName("GridY") val gridY: UInt,
-    @SerializedName("X1") val x1: Int,
-    @SerializedName("Y1") val y1: Int,
-    @SerializedName("X2") val x2: UInt,
-    @SerializedName("Y2") val y2: UInt,
-    @SerializedName("TextureIndex") val textureIndex: Int,
-    @SerializedName("TextureName") val textureName: String,
-    @SerializedName("TextureSize") val textureSize: UInt,
-    @SerializedName("TileValue") val tileValue: UShort
-)
-
-data class BlendDescriptionExport(
-    @SerializedName("Direction") val direction: BlendDirection,
-    @SerializedName("Flags") val flags: BlendFlags,
-    @SerializedName("SecondaryTextureTile") val secondaryTextureTile: UInt
-)
-
-data class TextureDataExport(
-    @SerializedName("Index") val index: Int,
-    @SerializedName("Name") val name: String,
-    @SerializedName("FileName") val fileName: String,
-    @SerializedName("Width") val width: UInt,
-    @SerializedName("CellStart") val cellStart: UInt,
-    @SerializedName("CellCount") val cellCount: UInt,
-    @SerializedName("CellSize") val cellSize: UInt,
-)
-
-data class UnityMapExport(
-    @SerializedName("MapName") val mapName: String,
-    @SerializedName("Dimensions") val dimensions: MapDimensions,
-    @SerializedName("Tiles") val tiles: List<TileDataExport>,
-    @SerializedName("Textures") val textures: List<TextureDataExport>,
-    @SerializedName("TextureCellCount") val textureCellCount: UInt,
-    @SerializedName("BlendDescriptions") val blendDescriptions: List<BlendDescriptionExport>
-)
 
 class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, val config: MapExporterConfig) {
-    val tilesExportList: MutableList<TileDataExport> = mutableListOf()
-    val blendDescriptionsExportList: MutableList<BlendDescriptionExport> = mutableListOf()
-    val textureExportList: MutableList<TextureDataExport> = mutableListOf()
-    val dimensions = MapDimensions(mapFile.width(), mapFile.height(), config.tileSize)
-
     fun export(outputDir: Path) {
-        if (config.generatePreviews) {
-            generatePreviewImage(outputDir)
+        if (!config.generatePreview && !config.splitImageByBlocks) {
+            println("  Skipping tile map export (no output options selected).")
+            return;
         }
 
-        mapFile.blendTileData.blendDescriptions.forEach {
-            blendDescriptionsExportList.add(
-                BlendDescriptionExport(
-                    direction = it.blendDirection,
-                    flags = it.flags,
-                    secondaryTextureTile = it.secondaryTextureTile
-                )
-            )
-        }
+        generateImage(outputDir)
 
-
-
-        exportJson(
-            outputDir,
-            UnityMapExport(
-                mapName = mapFile.worldInfo["mapName"]?.value.toString(),
-                dimensions = dimensions,
-                tiles = tilesExportList,
-                textures = textureExportList.distinctBy { it.index }.sortedBy { it.index },
-                textureCellCount = mapFile.blendTileData.textureCellCount,
-                blendDescriptions = blendDescriptionsExportList
-            )
+        printExportSummary(
+            tileCount = mapFile.blendTileData.tiles.rowMap().size,
+            textureCount = mapFile.blendTileData.textures.size
         )
-
-        printExportSummary(mapFile.blendTileData.tiles.rowMap().size, mapFile.blendTileData.textures.size)
     }
 
-    fun generatePreviewImage(outputDir: Path) {
+    fun generateImage(outputDir: Path) {
         val imageWidth = (mapFile.width() * config.previewTileSize).toInt()
         val imageHeight = (mapFile.height() * config.previewTileSize).toInt()
         val image = BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
         val graphics = image.createGraphics()
 
         try {
+            println("  Drawing base tiles...")
             drawBaseTiles(graphics)
 
             if (config.blendTiles) {
+                println("  Applying tile blends...")
                 applyTileBlends(
                     mapFile,
                     textureManager,
@@ -116,7 +46,19 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
                 )
             }
 
-            savePreviewImage(outputDir, image)
+            if (config.splitImageByBlocks) {
+                println("  Splitting image into blocks...")
+                applyBlockSplits(
+                    config,
+                    outputDir,
+                    image
+                )
+            }
+
+            if (config.generatePreview) {
+                println("  Generating preview image...")
+                savePreviewImage(outputDir, image)
+            }
         } finally {
             graphics.dispose()
         }
@@ -146,29 +88,6 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
                 config.tileSize.toInt()
             )
 
-            tilesExportList.add(TileDataExport(
-                gridX = x,
-                gridY = y,
-                x1 = point.x,
-                y1 = point.y,
-                x2 = config.tileSize,
-                y2 = config.tileSize,
-                textureIndex = mapFile.blendTileData.textures.indexOf(texture),
-                textureName = texture.name,
-                textureSize = textureImage.width.toUInt(),
-                tileValue = tileValue
-            ))
-
-            textureExportList.add(TextureDataExport(
-                index = mapFile.blendTileData.textures.indexOf(texture),
-                name = texture.name,
-                fileName = textureManager.getTextureFileName(texture),
-                width = textureImage.width.toUInt(),
-                cellStart = texture.cellStart,
-                cellCount = texture.cellCount,
-                cellSize = texture.cellSize
-            ))
-
             graphics.drawImage(
                 cellImage,
                 x.toInt() * previewTileSize,
@@ -180,23 +99,69 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
         }
     }
 
+    private fun applyBlockSplits(
+        config: MapExporterConfig,
+        outputDir: Path,
+        image: BufferedImage
+    ) {
+        val blockSizeInPixels = (config.blockSize * config.previewTileSize).toInt()
+
+        val blocksX = (image.width + blockSizeInPixels - 1) / blockSizeInPixels
+        val blocksY = (image.height + blockSizeInPixels - 1) / blockSizeInPixels
+        val totalBlocks = blocksX * blocksY
+
+        val block = BufferedImage(blockSizeInPixels, blockSizeInPixels, BufferedImage.TYPE_INT_RGB)
+        val blockFileName = "blocks"
+        val blockFilePath = outputDir.resolve(blockFileName)
+        blockFilePath.parent.toFile().mkdirs()
+
+        var blockCounter = 0
+        for (by in 0 until blocksY) {
+            for (bx in 0 until blocksX) {
+                blockCounter++
+
+                val g = block.createGraphics()
+                try {
+                    val srcX = bx * blockSizeInPixels
+                    val srcY = by * blockSizeInPixels
+                    val srcWidth = minOf(blockSizeInPixels, image.width - srcX)
+                    val srcHeight = minOf(blockSizeInPixels, image.height - srcY)
+
+                    g.drawImage(
+                        image,
+                        0,
+                        0,
+                        srcWidth,
+                        srcHeight,
+                        srcX,
+                        srcY,
+                        srcX + srcWidth,
+                        srcY + srcHeight,
+                        null
+                    )
+                } finally {
+                    g.dispose()
+                }
+
+                val blockFileName = "blocks/tilemap_block_${bx}_$by.png"
+                val blockFilePath = outputDir.resolve(blockFileName)
+
+                ImageIO.write(block, "PNG", blockFilePath.toFile())
+                println("  Saved: $blockFileName [$blockCounter/$totalBlocks]")
+            }
+        }
+    }
+
     private fun savePreviewImage(outputDir: Path, image: BufferedImage) {
         val outputFile = outputDir.resolve("tilemap.png")
         ImageIO.write(image, "PNG", outputFile.toFile())
     }
 
-    private fun exportJson(outputDir: Path, data: UnityMapExport) {
-        val json = GSON.toJson(data)
-        val jsonFile = outputDir.resolve("tilemap.json")
-        jsonFile.writeText(json)
-    }
-
     private fun printExportSummary(tileCount: Int, textureCount: Int) {
         println("  Tiles: $tileCount")
         println("  Textures: $textureCount")
-        println("  Saved: tilemap.json")
 
-        if (config.generatePreviews) {
+        if (config.generatePreview) {
             println("  Saved: tilemap.png")
         }
     }

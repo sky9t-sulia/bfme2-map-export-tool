@@ -1,5 +1,6 @@
 package com.sulia.sky9t.config
 
+import com.sulia.sky9t.BLOCK_SIZE
 import com.sulia.sky9t.TILE_SIZE
 import com.sulia.sky9t.PREVIEW_TILE_SIZE
 import java.nio.file.Path
@@ -12,8 +13,10 @@ import kotlin.io.path.readLines
 
 data class MapExporterConfig(
     val tileSize: UInt,
+    val blockSize: UInt,
     val previewTileSize: UInt,
-    val generatePreviews: Boolean,
+    val generatePreview: Boolean,
+    val splitImageByBlocks: Boolean,
     val blendTiles: Boolean,
     val generateTileMap: Boolean,
     val generateHeightMap: Boolean,
@@ -72,7 +75,9 @@ class ConfigLoader(private val configPath: Path) {
         return MapExporterConfig(
             tileSize = getUInt("tile_size", TILE_SIZE),
             previewTileSize = getUInt("preview_tile_size", PREVIEW_TILE_SIZE),
-            generatePreviews = getBoolean("generate_previews", false),
+            blockSize = getUInt("block_size", BLOCK_SIZE),
+            splitImageByBlocks = getBoolean("split_image_by_blocks", false),
+            generatePreview = getBoolean("generate_preview", false),
             blendTiles = getBoolean("blend_tiles", true),
             generateTileMap = getBoolean("generate_tilemap", false),
             generateHeightMap = getBoolean("generate_heightmap", false),

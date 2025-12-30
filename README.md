@@ -52,13 +52,30 @@ On first run, the tool will generate a default `config.ini` file. Edit this file
 # Usually you dont need to change that value
 tile_size = 32
 
+# Splits image by blocks.
+split_image_by_blocks = 1
+
+# Block size for splitting images.
+block_size = 16
+
 # Cell size for preview images (smaller = faster)
-preview_tile_size = 8
+preview_tile_size = 32
+
 
 # Export options (0 = disabled, 1 = enabled)
-generate_previews = 1
-generate_tilemap = 1
+
+# Will generate a preview image of the heightmap.
+# Note: image can be very large for big maps.
+generate_preview = 1
+
+# Blend tiles in the preview image using blend masks.
+# Note: visual bugs may occur.
 blend_tiles = 1
+
+# If not enabled, only heightmap will be generated.
+generate_tilemap = 1
+
+# Heightmap export
 generate_heightmap = 1
 
 # Directory containing .map files to export

@@ -12,6 +12,7 @@ import javax.imageio.ImageIO
 import kotlin.io.path.outputStream
 import kotlin.io.path.writeBytes
 import kotlin.io.path.writeText
+import kotlin.toString
 
 // ============================================================================
 // Domain Models
@@ -19,6 +20,7 @@ import kotlin.io.path.writeText
 
 data class HeightMapMetadata(
     @SerializedName("MapName") val mapName: String,
+    @SerializedName("Description") val description: String,
     @SerializedName("Width") val width: Int,
     @SerializedName("Height") val height: Int,
     @SerializedName("Border") val border: Int,
@@ -104,14 +106,21 @@ class HeightMapExporter(private val mapFile: MapFile) {
     }
 
     private fun saveMetadata(outputDir: Path) {
+        var mapName = mapFile.worldInfo["mapName"]?.value as? String
+        if (mapName.isNullOrBlank()) {
+            mapName = outputDir.fileName.toString()
+        }
+        val description = mapFile.worldInfo["mapDescription"]?.value as? String ?: "No description"
+
         val metadata = HeightMapMetadata(
-            mapName = mapFile.worldInfo["mapName"]?.value.toString(),
+            mapName = mapName,
+            description = description,
             width = width,
             height = height,
             border = heightMap.borderWidth.toInt()
         )
 
-        val metadataPath = outputDir.resolve("heightmap.json")
+        val metadataPath = outputDir.resolve("map.json")
         metadataPath.writeText(GSON.toJson(metadata))
     }
 
@@ -120,6 +129,7 @@ class HeightMapExporter(private val mapFile: MapFile) {
     }
 
     private fun printExportSummary() {
+        println("  Saved JSON map.json")
         println("  Saved RAW: heightmap.raw")
         println("  Saved PNG: heightmap.png")
     }
