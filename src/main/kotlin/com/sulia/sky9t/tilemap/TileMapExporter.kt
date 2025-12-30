@@ -12,6 +12,7 @@ import java.awt.image.BufferedImage
 import java.nio.file.Path
 import javax.imageio.ImageIO
 import kotlin.io.path.writeText
+import kotlin.math.ceil
 
 data class TileMapBlock(
     @SerializedName("Index")
@@ -61,7 +62,7 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
         generateImage(outputDir)
 
         printExportSummary(
-            tileCount = mapFile.blendTileData.tiles.rowMap().size,
+            tileCount = mapFile.blendTileData.tiles.rowMap().size * mapFile.blendTileData.tiles.rowMap().values.first().size,
             textureCount = mapFile.blendTileData.textures.size
         )
     }
@@ -147,8 +148,8 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
     ) {
         val blockSizeInPixels = (config.blockSize * config.previewTileSize).toInt()
 
-        val blocksX = (image.width + blockSizeInPixels - 1) / blockSizeInPixels
-        val blocksY = (image.height + blockSizeInPixels - 1) / blockSizeInPixels
+        val blocksX = ceil(image.width.toDouble() / blockSizeInPixels).toInt()
+        val blocksY = ceil(image.height.toDouble() / blockSizeInPixels).toInt()
         val totalBlocks = blocksX * blocksY
 
         val block = BufferedImage(blockSizeInPixels, blockSizeInPixels, BufferedImage.TYPE_INT_RGB)
@@ -157,14 +158,15 @@ class TileMapExporter(val mapFile: MapFile, val textureManager: TextureManager, 
         blockFilePath.parent.toFile().mkdirs()
 
         var blockCounter = 0
-        for (bx in 0 until blocksY) {
-            for (by in 0 until blocksX) {
+        for (by in 0 until blocksY) {
+            for (bx in 0 until blocksX) {
                 blockCounter++
 
                 val g = block.createGraphics()
                 try {
                     val srcX = bx * blockSizeInPixels
-                    val srcY = by * blockSizeInPixels
+                    // Flip Y coordinate
+                    val srcY = image.height - (by + 1) * blockSizeInPixels
                     val srcWidth = minOf(blockSizeInPixels, image.width - srcX)
                     val srcHeight = minOf(blockSizeInPixels, image.height - srcY)
 
